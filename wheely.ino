@@ -1,36 +1,11 @@
-#include <PID_v1.h>
-
-/*
-Author  : Andrea Lombardo
-Site    : https://www.lombardoandrea.com
-Source  : https://github.com/AndreaLombardo/L298N/
-
-Here you can see how to work in a common configuration.
-
-L298NX2 is not a new version of module or IC, 
-but it stands for a double implementation of L298N library.
-
-With L298NX2 is possible to initialize two motors at once.
-
-Speed range go from 0 to 255, default is 100.
-Use setSpeed(speed) to change speed for both motors,
-setSpeedA(speed) or setSpeedB(speed) for individual changes.
-
-Sometimes at lower speed motors seems not running.
-It's normal, may depends by motor and power supply.
-
-Wiring schema in file "L298NX2 - Schema_with_EN_pin.png"
-*/
-
-// Include the (new) library
 #include "wheely.hpp"
-#include <L298NX2.h>
 #include "math.h"
 
-
+#include <PID_v1.h>
+#include <L298NX2.h>
+#include <ServoInput.h>
 #include <MPU6050_tockn.h>
 #include <Wire.h>
-#include <ServoInput.h>
 
 
 int count = 0;
