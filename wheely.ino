@@ -13,7 +13,9 @@ int loop_time = 0;
 unsigned long last_update = 0;
 
 double pid_in, pid_out, pid_target = 0;
-double kp = 10, ki = 80, kd = 0.25;
+double kp = 10, ki = 80, kd = 0.25; // good trimming for hi freq PWMs (490hz?)
+// double kp = 10, ki = 200, kd = 0.25;
+
 bool robot_down = false;
 float in_rot=0, in_throttle=0, in_pot=0;
 
@@ -95,12 +97,17 @@ void setup()
     mpu6050.setGyroOffsets(offX, offY, offZ);
   }
 
+  setPwmFrequency(EN_A, 256);
+  setPwmFrequency(EN_B, 256);
+
+  // tone(BUZZER, 300, 1000);
   // Wait for Serial Monitor to be opened
   // while (!Serial)
   // {
   //   //do nothing
   // }
 
+  // delay(1000);
   play_tone(ready, LEN(ready));
 }
 
