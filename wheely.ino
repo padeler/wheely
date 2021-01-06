@@ -84,18 +84,31 @@ void setup()
     delay(300);
 	}
 
+  float offX, offY, offZ;
   if(ServoInput.available() && steering.getPercent()>0.7 && throttle.getPercent()>0.7)
-  { // TODO Save values to EEPROM. 
+  { 
     play_tone(calibrating, LEN(calibrating));
     mpu6050.calcGyroOffsets(true);
     play_tone(calibrating, LEN(calibrating));
+    // store offsets to EEPROM
+    offX = mpu6050.getGyroXoffset();
+    offY = mpu6050.getGyroYoffset();
+    offZ = mpu6050.getGyroZoffset();
+    Serial.print("Writing offsets to EEPROM..."); 
+    Write_MPUOffsets(offX, offY, offZ);
   }
   else
   {
-    float offX = -2.17, offY = 2.44, offZ = 0.16;
-    mpu6050.setGyroOffsets(offX, offY, offZ);
+    Serial.print("Loading offsets from EEPROM..."); 
+    Read_MPUOffsets(offX, offY, offZ);  
   }
 
+  Serial.print("Gyro offsets: ");
+  Serial.print(offX);Serial.print(", ");
+  Serial.print(offY);Serial.print(", ");
+  Serial.print(offZ);Serial.println();
+
+  mpu6050.setGyroOffsets(offX, offY, offZ);
   setPwmFrequency(EN_A, 256);
   setPwmFrequency(EN_B, 256);
 
@@ -189,9 +202,8 @@ void loop()
   count += 1;
   loop_time += millis() - st;
 
-  if (count >= 300)
+  if (loop_time>500) // log but not very often
   {
-    
     float dt = loop_time / count;
     count = 0;
     loop_time = 0;
@@ -204,7 +216,7 @@ void loop()
     Serial.print(" AngleX: ");
     Serial.print(pid_in);
 
-    Serial.print("IN R: "); Serial.print(in_rot);
+    Serial.print(" IN R: "); Serial.print(in_rot);
     Serial.print(" T: "); Serial.print(in_throttle);
     Serial.print(" Pot: "); Serial.print(in_pot);
     Serial.println();

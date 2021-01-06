@@ -1,4 +1,5 @@
 #pragma once
+#include <EEPROM.h>
 
 // Pin definition
 #define EN_A 9
@@ -21,7 +22,6 @@
 
 #define LEN(x) sizeof(x)/sizeof(x[0])
 
-
 /*   - Base frequencies:
  *      o The base frequency for pins 3, 9, 10, and 11 is 31250 Hz.
  *      o The base frequency for pins 5 and 6 is 62500 Hz.
@@ -43,4 +43,33 @@ void setPwmFrequency(int pin, int divisor){
       TCCR1B=TCCR1B&0b11111000|mode;
     }
   }
+}
+
+#define OFFSETS_FLAG 123
+#define OFFSETS_FLAG_IDX 0
+
+bool Read_MPUOffsets(float &offX, float &offY, float &offZ)
+{
+  byte flag;
+  flag = EEPROM.read(OFFSETS_FLAG_IDX);
+  if(flag==OFFSETS_FLAG)
+  { // There are data in the EEPROM
+     EEPROM.get(OFFSETS_FLAG_IDX+1, offX);
+     EEPROM.get(OFFSETS_FLAG_IDX+1+sizeof(float), offY);
+     EEPROM.get(OFFSETS_FLAG_IDX+1+2*sizeof(float), offZ);
+     return true;
+  }
+  // No data, return defaults
+  offX = -2.17;
+  offY = 2.44;
+  offZ = 0.16;
+  return false;
+}
+
+void Write_MPUOffsets(float offX, float offY, float offZ)
+{
+  EEPROM.update(OFFSETS_FLAG_IDX, OFFSETS_FLAG);
+  EEPROM.put(OFFSETS_FLAG_IDX+1, offX);
+  EEPROM.put(OFFSETS_FLAG_IDX+1+sizeof(float), offY);
+  EEPROM.put(OFFSETS_FLAG_IDX+1+2*sizeof(float), offZ);
 }
