@@ -26,8 +26,6 @@ L298NX2 motors(EN_A, IN1_A, IN2_A, EN_B, IN1_B, IN2_B);
 
 MPU6050 mpu6050(Wire);
 
-TargetAccum accum(50, 0.50);
-
 
 /* Signal pins for ServoInput MUST be interrupt-capable pins!
  *     Uno, Nano, Mini (328P): 2, 3
@@ -175,17 +173,10 @@ void loop()
 
       setMotors(motorA, motorB);
 
-      // if (accum.update((pid_out/MAX_POWER)*pid_in))
-      // { // update target to account for balance shifts
-      //   // only when no external input is applied
-      //   // pid_target = -accum.getAccum();
-      //   // accum.reset();
-      // }
     }
   }
   else
   {
-    accum.reset();
     pid_target = 0;
     setMotors(0, 0);
     if(!robot_down)
@@ -213,8 +204,6 @@ void loop()
     Serial.print(pid_target);
     Serial.print(" AngleX: ");
     Serial.print(pid_in);
-    Serial.print(" Accum: ");
-    Serial.println(accum.getAccum());
 
     Serial.print("IN R: "); Serial.print(in_rot);
     Serial.print(" T: "); Serial.print(in_throttle);
