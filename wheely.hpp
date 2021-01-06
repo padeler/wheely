@@ -21,25 +21,6 @@
 
 #define LEN(x) sizeof(x)/sizeof(x[0])
 
-/**** Notification Tones  ****/
-unsigned short fallen[] = {200, 100, 50 , 10};
-unsigned short ready[] = {200, 150, 255, 255};
-unsigned short calibrating[] = {100, 150, 100, 150, 100, 150, 100, 150};
-unsigned short wait_link[] = {20,};
-unsigned short link_up[] = {200, 200};
-/******************************/
-
-void play_tone(unsigned short *t, int len, unsigned int d=50)
-{
-  return;
-  for(int i=0;i<len; ++i)
-  {
-    analogWrite(BUZZER, t[i]);
-    delay(d);
-    analogWrite(BUZZER, 0);
-    delay(d);
-  }
-}
 
 /*   - Base frequencies:
  *      o The base frequency for pins 3, 9, 10, and 11 is 31250 Hz.

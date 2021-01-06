@@ -7,6 +7,7 @@
 #include <MPU6050_tockn.h>
 #include <Wire.h>
 
+#include "starwars.hpp"
 
 int count = 0;
 int loop_time = 0;
@@ -98,15 +99,10 @@ void setup()
   setPwmFrequency(EN_A, 256);
   setPwmFrequency(EN_B, 256);
 
-  // tone(BUZZER, 300, 1000);
-  // Wait for Serial Monitor to be opened
-  // while (!Serial)
-  // {
-  //   //do nothing
-  // }
-
-  // delay(1000);
   play_tone(ready, LEN(ready));
+
+  // Starwars tune;
+  // play_tune(tune);
 }
 
 void setMotors(int speedA, int speedB)
@@ -123,6 +119,9 @@ void setMotors(int speedA, int speedB)
   speedA>=0 ? motors.forwardA(): motors.backwardA();
   speedB>=0 ? motors.forwardB(): motors.backwardB();
 }
+
+
+
 
 void loop()
 {
