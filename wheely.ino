@@ -7,7 +7,7 @@
 #include <MPU6050_tockn.h>
 #include <Wire.h>
 
-#include "starwars.hpp"
+#include "tunes.hpp"
 
 int count = 0;
 int loop_time = 0;
@@ -15,10 +15,11 @@ unsigned long last_update = 0;
 
 double pid_in, pid_out, pid_target = 0;
 double kp = 10, ki = 80, kd = 0.25; // good trimming for hi freq PWMs (490hz?)
-// double kp = 10, ki = 200, kd = 0.25;
+//double kp = 12, ki = 150, kd = 0.15; 
+
+bool serial_connected = false;
 
 bool robot_down = false;
-float in_rot=0, in_throttle=0, in_pot=0;
 
 PID pid(&pid_in, &pid_out, &pid_target, kp, ki, kd, P_ON_E, REVERSE);
 
@@ -55,15 +56,18 @@ const int Ch6PulseMax = 1932;  // Ideal values for your servo can be found with 
 
 ServoInputPin<Ch6SignalPin> pot(Ch6PulseMin, Ch6PulseMax);
 
+TunePlayer player;
+InputHandler input;
+
+#define T(m) Tune(LEN(m),m)
+int tune_select = 0;
+const Tune tunes[] = {
+  T(pacman_melody), T(mario_melody), T(starwars_melody), T(immarch_melody), T(doom_melody)
+};
 
 
 void setup()
 {
-  pinMode(BUZZER, OUTPUT);
-
-  // Used to display information
-  Serial.begin(9600);
-
   Wire.begin();
   mpu6050.begin();
 
@@ -72,50 +76,61 @@ void setup()
   pid.SetOutputLimits(-MAX_POWER, MAX_POWER);
   pid_target = 0;
 
+
+  // Used to display information
+  Serial.begin(9600);
+  serial_connected=true;
+  // for(int i=0;i<3;++i)
+  // {
+  //   delay(200);
+  //   if(Serial){
+  //     break;
+  //   }
+  // }
+
   int wait_count=2;
 	while ((wait_count--)>=0) {  // wait for all signals to be ready
-		Serial.println("Waiting for servo signals...");
+		print("Waiting for RC signals...\n");
     if(ServoInput.available())
     {
-      play_tone(link_up, LEN(link_up), 10);
+      ALERT_BLOCK(player, link_up);
       break;
     }
-		play_tone(wait_link, LEN(wait_link));
+    ALERT_BLOCK(player, wait_link);
     delay(300);
 	}
 
   float offX, offY, offZ;
   if(ServoInput.available() && steering.getPercent()>0.7 && throttle.getPercent()>0.7)
   { 
-    play_tone(calibrating, LEN(calibrating));
+    ALERT_BLOCK(player, calibrating);
     mpu6050.calcGyroOffsets(true);
-    play_tone(calibrating, LEN(calibrating));
+    ALERT_BLOCK(player, calibrating);
     // store offsets to EEPROM
     offX = mpu6050.getGyroXoffset();
     offY = mpu6050.getGyroYoffset();
     offZ = mpu6050.getGyroZoffset();
-    Serial.print("Writing offsets to EEPROM..."); 
+    print("Writing offsets to EEPROM...\n"); 
     Write_MPUOffsets(offX, offY, offZ);
   }
   else
   {
-    Serial.print("Loading offsets from EEPROM..."); 
+    print("Loading offsets from EEPROM..."); 
     Read_MPUOffsets(offX, offY, offZ);  
   }
 
-  Serial.print("Gyro offsets: ");
-  Serial.print(offX);Serial.print(", ");
-  Serial.print(offY);Serial.print(", ");
-  Serial.print(offZ);Serial.println();
+  print("Gyro offsets: ");
+  print(offX);print(", ");
+  print(offY);print(", ");
+  print(offZ);print("\n");
 
   mpu6050.setGyroOffsets(offX, offY, offZ);
-  setPwmFrequency(EN_A, 256);
-  setPwmFrequency(EN_B, 256);
+  // setPwmFrequency(EN_A, 256);
+  // setPwmFrequency(EN_B, 256);
 
-  play_tone(ready, LEN(ready));
+  ALERT(player, ready);
 
-  // Starwars tune;
-  // play_tune(tune);
+  // TUNE(player, mario_melody);
 }
 
 void setMotors(int speedA, int speedB)
@@ -133,12 +148,34 @@ void setMotors(int speedA, int speedB)
   speedB>=0 ? motors.forwardB(): motors.backwardB();
 }
 
-
+template< typename T > void print(const T &t )
+{
+  if(serial_connected)
+  {
+    Serial.print(t);
+  }
+}
 
 
 void loop()
 {
+
+    // // while(true){
+    // if(Serial)
+    // {
+    //   Serial.println("Link up.");
+    //   play_tone(link_up, LEN(link_up), 100);
+    // }
+    // else{
+		//   play_tone(wait_link, LEN(wait_link), 30);
+    //   // delay(1000);
+    // }
+    // delay(1500);
+    // return;
+
+
   unsigned long st = millis();
+  float in_rot=0, in_throttle=0, in_pot=0;
 
   if(ServoInput.available())
   {
@@ -165,7 +202,8 @@ void loop()
   {
     if(robot_down){
       robot_down=false;
-      play_tone(ready, LEN(ready));
+      player.pause_tune(false);
+      ALERT(player, ready);
     }
     if (pid.Compute())
     {
@@ -194,10 +232,34 @@ void loop()
     if(!robot_down)
     {
       robot_down=true;
-      play_tone(fallen, LEN(fallen));
+      player.pause_tune(true);
+      ALERT(player, fallen);
+    }
+    else
+    {
+      uint8_t flag = input(throttle.getPercent(), steering.getPercent());
+      // if(flag!=NOIN){
+      //   ALERT(player, click);
+      //   Serial.print("Input Handler: "); Serial.println(flag, BIN);
+      // }
+
+      if(flag==BRU) // stop music
+      {
+        ALERT(player, click);
+        print("Stop Tune.\n");
+        player.stop_tune();
+      }
+      else if(flag==BLU) // next tune
+      {
+        tune_select = (tune_select+1) % (int)(LEN(tunes));
+        player.set_tune(tunes[tune_select]);
+        ALERT(player, click);
+        print("Playing tune ");print(tune_select);print("\n");
+      }
     }
   }
 
+  player(); // process pending tunes
 
   count += 1;
   loop_time += millis() - st;
@@ -207,19 +269,19 @@ void loop()
     float dt = loop_time / count;
     count = 0;
     loop_time = 0;
-    Serial.print("Av time ");
-    Serial.print(dt);
-    Serial.print(" pid_out: ");
-    Serial.print(pid_out);
-    Serial.print(" pid_target: ");
-    Serial.print(pid_target);
-    Serial.print(" AngleX: ");
-    Serial.print(pid_in);
+    print("Av time ");
+    print(dt);
+    print(" pid_out: ");
+    print(pid_out);
+    print(" pid_target: ");
+    print(pid_target);
+    print(" AngleX: ");
+    print(pid_in);
 
-    Serial.print(" IN R: "); Serial.print(in_rot);
-    Serial.print(" T: "); Serial.print(in_throttle);
-    Serial.print(" Pot: "); Serial.print(in_pot);
-    Serial.println();
+    print(" IN R: "); print(in_rot);
+    print(" T: "); print(in_throttle);
+    print(" Pot: "); print(in_pot);
+    print("\n");
   }
 
 }
