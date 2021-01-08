@@ -13,7 +13,7 @@ int count = 0;
 int loop_time = 0;
 unsigned long last_update = 0;
 
-double pid_in, pid_out, pid_target = 0;
+double pid_in, pid_out, pid_target = 0, av_pid_out=0;
 double kp = 10, ki = 80, kd = 0.25; // good trimming for hi freq PWMs (490hz?)
 //double kp = 12, ki = 150, kd = 0.15; 
 
@@ -80,17 +80,10 @@ void setup()
   // Used to display information
   Serial.begin(9600);
   serial_connected=true;
-  // for(int i=0;i<3;++i)
-  // {
-  //   delay(200);
-  //   if(Serial){
-  //     break;
-  //   }
-  // }
 
   int wait_count=2;
 	while ((wait_count--)>=0) {  // wait for all signals to be ready
-		print("Waiting for RC signals...\n");
+		log("Waiting for RC signals...\n");
     if(ServoInput.available())
     {
       ALERT_BLOCK(player, link_up);
@@ -101,7 +94,7 @@ void setup()
 	}
 
   float offX, offY, offZ;
-  if(ServoInput.available() && steering.getPercent()>0.7 && throttle.getPercent()>0.7)
+  if(ServoInput.available() && input(throttle.getPercent(), steering.getPercent())==TRD)
   { 
     ALERT_BLOCK(player, calibrating);
     mpu6050.calcGyroOffsets(true);
@@ -110,19 +103,19 @@ void setup()
     offX = mpu6050.getGyroXoffset();
     offY = mpu6050.getGyroYoffset();
     offZ = mpu6050.getGyroZoffset();
-    print("Writing offsets to EEPROM...\n"); 
+    log("Writing offsets to EEPROM...\n"); 
     Write_MPUOffsets(offX, offY, offZ);
   }
   else
   {
-    print("Loading offsets from EEPROM..."); 
+    log("Loading offsets from EEPROM..."); 
     Read_MPUOffsets(offX, offY, offZ);  
   }
 
-  print("Gyro offsets: ");
-  print(offX);print(", ");
-  print(offY);print(", ");
-  print(offZ);print("\n");
+  log("Gyro offsets: ");
+  log(offX);log(", ");
+  log(offY);log(", ");
+  log(offZ);log("\n");
 
   mpu6050.setGyroOffsets(offX, offY, offZ);
   // setPwmFrequency(EN_A, 256);
@@ -148,7 +141,7 @@ void setMotors(int speedA, int speedB)
   speedB>=0 ? motors.forwardB(): motors.backwardB();
 }
 
-template< typename T > void print(const T &t )
+template< typename T > void log(const T &t )
 {
   if(serial_connected)
   {
@@ -156,26 +149,16 @@ template< typename T > void print(const T &t )
   }
 }
 
+double speed_sigmoid(double x, double a=30, double b=15)
+{
+  return 1 - 1/(1+exp(-(a*x-b)));
+}
+
+float in_rot=0, in_throttle=0, in_pot=0;
 
 void loop()
 {
-
-    // // while(true){
-    // if(Serial)
-    // {
-    //   Serial.println("Link up.");
-    //   play_tone(link_up, LEN(link_up), 100);
-    // }
-    // else{
-		//   play_tone(wait_link, LEN(wait_link), 30);
-    //   // delay(1000);
-    // }
-    // delay(1500);
-    // return;
-
-
   unsigned long st = millis();
-  float in_rot=0, in_throttle=0, in_pot=0;
 
   if(ServoInput.available())
   {
@@ -185,9 +168,46 @@ void loop()
 
     pid_target = in_pot;
 
-    if(abs(in_throttle)>1.0) // above throttle dead zone
+    uint8_t flag = input(throttle.getPercent(), steering.getPercent());
+    if(flag!=NOIN){
+      ALERT(player, click);
+      Serial.print("Input Handler: "); Serial.println(flag, BIN);
+    }
+
+    if(flag==BRU) // stop music
     {
-      pid_target += in_throttle;
+      ALERT(player, click2);
+      log("Stop Tune.\n");
+      player.stop_tune();
+    }
+    else if(flag==BLU) // next tune
+    {
+      tune_select = (tune_select+1) % (int)(LEN(tunes));
+      player.set_tune(tunes[tune_select]);
+      ALERT(player, click);
+      log("Playing tune ");log(tune_select);log("\n");
+    }
+    else if(flag==TRD && fallen)
+    {
+      int speed = 100;
+      if(pid_in<0) // robot on its back
+      {
+        speed=-speed;
+      }
+      Serial.println("Self-Raise Sequence.");
+      setMotors(speed, speed);
+    }
+
+
+    if(abs(in_throttle)>1.0) // above throttle dead zone
+    {  
+      float scale=1.0;
+      if(in_throttle*av_pid_out>0) // throttle is in the direction of motion
+      { // scale adjustment to avoid falling due to overpowering the motors
+        // XXX This is a bad aproximation (see av_pid_out below).
+        scale = speed_sigmoid(abs(av_pid_out)/MAX_POWER);
+      }// if throttle is the oposite of the direction of motion no scaling is needed (so scale==1).
+      pid_target += in_throttle * scale;
     }
   }
 
@@ -207,8 +227,11 @@ void loop()
     }
     if (pid.Compute())
     {
-      // set motor power after constraining it
-      // motorPower = constrain(motorPower, -255, 255);
+      // XXX This is a bad aproximation. 
+      // The correct way to compensate for 
+      // motor speed is to use odometry (encoders).
+      av_pid_out = 0.99*av_pid_out + 0.01*pid_out; 
+
       int motorA = pid_out, motorB = pid_out;
 
       int rot = int(abs(in_rot));
@@ -228,34 +251,13 @@ void loop()
   else
   {
     pid_target = 0;
-    setMotors(0, 0);
     if(!robot_down)
     {
+      setMotors(0, 0);
+      av_pid_out = 0;
       robot_down=true;
       player.pause_tune(true);
       ALERT(player, fallen);
-    }
-    else
-    {
-      uint8_t flag = input(throttle.getPercent(), steering.getPercent());
-      // if(flag!=NOIN){
-      //   ALERT(player, click);
-      //   Serial.print("Input Handler: "); Serial.println(flag, BIN);
-      // }
-
-      if(flag==BRU) // stop music
-      {
-        ALERT(player, click);
-        print("Stop Tune.\n");
-        player.stop_tune();
-      }
-      else if(flag==BLU) // next tune
-      {
-        tune_select = (tune_select+1) % (int)(LEN(tunes));
-        player.set_tune(tunes[tune_select]);
-        ALERT(player, click);
-        print("Playing tune ");print(tune_select);print("\n");
-      }
     }
   }
 
@@ -269,19 +271,19 @@ void loop()
     float dt = loop_time / count;
     count = 0;
     loop_time = 0;
-    print("Av time ");
-    print(dt);
-    print(" pid_out: ");
-    print(pid_out);
-    print(" pid_target: ");
-    print(pid_target);
-    print(" AngleX: ");
-    print(pid_in);
+    log("Av time ");
+    log(dt);
+    log(" pid_out: ");
+    log((float)pid_out);
+    log(" pid_target: ");
+    log((float)pid_target);
+    log(" AngleX: ");
+    log((float)pid_in);
 
-    print(" IN R: "); print(in_rot);
-    print(" T: "); print(in_throttle);
-    print(" Pot: "); print(in_pot);
-    print("\n");
+    log(" IN R: "); log(in_rot);
+    log(" T: "); log(in_throttle);
+    log(" Pot: "); log(in_pot);
+    log("\n");
   }
 
 }

@@ -10,37 +10,14 @@
 #define IN2_B 21
 #define EN_B 6 //10
 
-#define MAX_ANGLE 45
+#define MAX_ANGLE 35
 #define MIN_POWER 25
-#define MAX_POWER 140
+#define MAX_POWER 150
 
-#define PID_TARGET_RANGE 12.0
+#define PID_TARGET_RANGE 15.0
 
 #define PID_SAMPLE_TIME 5
 
-
-/**
- * TODO
- * Holds the state of the robot and relevant metrics.
- * Implements behaivior (music, calibrate)
- * 
- */
-// class Robot
-// {
-
-//   public:
-//   bool fallen;
-//   float pid_in, pid_out, pid_target;
-
-//   // counters and metrics
-//   int count;
-//   unsigned long loop_ms_sum;
-//   float angleX_sum;
-//   float pid_out_sum;
-
-
-
-// };
 
 #define NOIN 0b00000000
 #define TLD 0b00000001
