@@ -107,7 +107,7 @@ volatile uint8_t timer1_pin_mask;
 void pwm(unsigned int frequency)
 {
   pinMode(BUZZER, OUTPUT);
-  if (frequency == 0)
+  if(frequency == 0)
   {
     bitWrite(TIMSK1, OCIE1A, 0);
     digitalWrite(BUZZER, 0);
@@ -243,7 +243,7 @@ struct Tune
 class TunePlayer
 {
 public:
-  TunePlayer():paused(false)
+  TunePlayer():paused(false), disabled(false)
   {}
 
   void set_alert(const Tune &alert)
@@ -254,6 +254,10 @@ public:
   void set_tune(const Tune &tune)
   {
     this->tune = tune;
+  }
+
+  void set_disabled(bool disabled){
+    this->disabled = disabled;
   }
 
   /**
@@ -273,6 +277,8 @@ public:
 
   void operator()()
   {
+    if(disabled) return;
+
     if (alert())
     {
       _play(alert);
@@ -289,6 +295,8 @@ public:
    */
   void play(Tune t)
   {
+    if(disabled) return;
+
     while(t()) // while there are notes to play
     {
       if(!t._wait_note())
@@ -310,5 +318,6 @@ private:
 
   Tune tune;
   Tune alert;
-  bool paused;
+  bool paused; // pause tunes (not alerts)
+  bool disabled; // mute everything
 };

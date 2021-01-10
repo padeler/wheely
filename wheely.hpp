@@ -1,6 +1,6 @@
 #pragma once
 #include <EEPROM.h>
-
+// #include <avr/iom32u4.h>
 // Pin definition
 #define EN_A 5 //9
 #define IN1_A 18
@@ -10,39 +10,49 @@
 #define IN2_B 21
 #define EN_B 6 //10
 
-#define MAX_ANGLE 35
-#define MIN_POWER 25
-#define MAX_POWER 150
+#define MAX_ANGLE 50
+#define MIN_POWER 120
+#define MAX_POWER 250
 
-#define PID_TARGET_RANGE 15.0
+#define PID_TARGET_RANGE 13.0
 
 #define PID_SAMPLE_TIME 5
 
 
+#define UP(x) (uint16_t)(0x0100|(uint16_t)x)
 #define NOIN 0b00000000
-#define TLD 0b00000001
-#define TRD 0b00000010
-#define BLD 0b00000100
-#define BRD 0b00001000
+#define TLD  0b00000001
+#define TRD  0b00000010
+#define BLD  0b00000100
+#define BRD  0b00001000
+#define TD   0b00010000
+#define BD   0b00100000
+#define LD   0b01000000
+#define RD   0b10000000
 
-#define TLU 0b10000001
-#define TRU 0b10000010
-#define BLU 0b10000100
-#define BRU 0b10001000
+#define TLU UP(TLD)
+#define TRU UP(TRD)
+#define BLU UP(BLD)
+#define BRU UP(BRD)
+#define TU  UP(TD)
+#define BU  UP(BD)
+#define LU  UP(LD)
+#define RU  UP(RD)
 
-#define INPUT_FLAG(tl,tr,bl,br) (tl|tr<<1|bl<<2|br<<3)
+
+#define INPUT_FLAG(tl,tr,bl,br, t, b, l, r) (tl|tr<<1|bl<<2|br<<3|t<<4|b<<5|l<<6|r<<7)
 
 class InputHandler
 {
   public:
   InputHandler(float thres=0.2):thres(thres),
-    tl(false), tr(false), bl(false), br(false)
+    tl(false), tr(false), bl(false), br(false),t(false), b(false), l(false), r(false)
   {
     last_check=0;
-    check_period=350;
+    check_period=200;
   }
 
-  uint8_t operator()(float th, float st){
+  uint16_t operator()(float th, float st){
     long now = millis();
     if(now-last_check>check_period)
     {
@@ -60,25 +70,29 @@ class InputHandler
       
       if(th_center && st_center)
       {
-        uint8_t flag = INPUT_FLAG(tl, tr, bl, br);
+        uint16_t flag = INPUT_FLAG(tl, tr, bl, br, t ,b, l, r);
         if(flag)
         { // report key up
-          tl=false; tr=false; bl=false; br=false;
-          return 0b10000000|flag;
+          tl=false; tr=false; bl=false; br=false; t=false; b=false, l=false, r=false;
+          return UP(flag);
         } // else flags will be reset bellow:
       }
       tl = top && left;
       tr = top && right;
       bl = bottom && left;
       br = bottom && right;
+      t = top && !left && !right;
+      b = bottom && !left && !right;
+      l = left && !top && !bottom;
+      r = right && !top && !bottom;
 
-      return INPUT_FLAG(tl, tr, bl, br);
+      return INPUT_FLAG(tl, tr, bl, br, t, b, l, r);
     }
     return NOIN;
   }
 
   private:
-  bool tl, tr, bl, br;
+  bool tl, tr, bl, br, t, b, l, r;
   float thres;
   long last_check;
   uint16_t check_period;
@@ -90,20 +104,44 @@ class InputHandler
  */
 void setPwmFrequency(int pin, int divisor){
   byte mode;
-  switch(divisor){
-    case 1:mode=0x01;break;
-    case 8:mode=0x02;break;
-    case 64:mode=0x03;break;
-    case 256:mode=0x04;break;
-    case 1024:mode=0x05;break;
-    default:return;
+  // PIN 5 is connected to timer3 with 3 CS bits
+ 	//     The three Clock Select bits select the clock source to be used by the
+	//     Timer/Counter.
+	//
+	//     CSn2 CSn1 CSn0  Description
+	//        0    0    0          OFF
+	//        0    0    1        clock
+	//        0    1    0    clock / 8
+	//        0    1    1   clock / 64
+	//        1    0    0  clock / 256
+	//        1    0    1 clock / 1024 
+  // See Table 13-8 in the datasheet (below).
+  // 
+  // PIN 6 is connected to timer4 with 4 CS bits
+  // See Table 15-14 on 32u4 datasheet:
+  // https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-7766-8-bit-AVR-ATmega16U4-32U4_Datasheet.pdf
+  if(pin==5)
+  {
+    switch(divisor){
+      case 1:mode=0x01;break;
+      case 8:mode=0x02;break;
+      case 64:mode=0x03;break;
+      case 256:mode=0x04;break;
+      case 1024:mode=0x05;break;
+      default:return;
+    }
+    TCCR3B=TCCR3B&0b11111000|mode;
   }
-  switch(pin){
-  case 5:TCCR3A=TCCR3A&0b11111000|mode;break;
-  case 6:TCCR4D=TCCR4D&0b11111000|mode;break;
-  case 9:TCCR1A=TCCR1A&0b11111000|mode;break;
-  case 10:TCCR1B=TCCR1B&0b11111000|mode;break;
-  default:return;
+  else{
+    switch(divisor){
+      case 1:mode=0x01;break;
+      case 8:mode=0x04;break;
+      case 64:mode=0x07;break;
+      case 256:mode=0x09;break;
+      case 1024:mode=0x0B;break;
+      default:return;
+    }
+    TCCR4B=TCCR4B&0b11111000|mode;
   }
 }
 
