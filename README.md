@@ -1,8 +1,8 @@
 # Wheely
 
-Yet another, balancing robot.
+Yet another, balancing robot. This was a STEAM (Christmas 2020) project with Sofi. She handled all the artistic mods :)
 
-![wheely](images/done.jpg)
+![wheely](images/sofi2sm.jpg)
 
 Features:
 
