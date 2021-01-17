@@ -11,8 +11,13 @@
 #define EN_B 6 //10
 
 #define MAX_ANGLE 50
-#define MIN_POWER 120
-#define MAX_POWER 250
+// Good values for 3s 
+// #define MIN_POWER 120
+// #define MAX_POWER 250
+// Good values for 2s 
+#define MIN_POWER 140
+#define MAX_POWER 255
+
 
 #define PID_TARGET_RANGE 13.0
 
@@ -148,7 +153,7 @@ void setPwmFrequency(int pin, int divisor){
 #define OFFSETS_FLAG 123
 #define OFFSETS_FLAG_IDX 0
 
-bool Read_MPUOffsets(float &offX, float &offY, float &offZ)
+bool Read_MPUOffsets(float &offX, float &offY, float &offZ, float &pid_target)
 {
   byte flag;
   flag = EEPROM.read(OFFSETS_FLAG_IDX);
@@ -157,19 +162,22 @@ bool Read_MPUOffsets(float &offX, float &offY, float &offZ)
      EEPROM.get(OFFSETS_FLAG_IDX+1, offX);
      EEPROM.get(OFFSETS_FLAG_IDX+1+sizeof(float), offY);
      EEPROM.get(OFFSETS_FLAG_IDX+1+2*sizeof(float), offZ);
+     EEPROM.get(OFFSETS_FLAG_IDX+1+3*sizeof(float), pid_target);
      return true;
   }
   // No data, return defaults
   offX = -2.17;
   offY = 2.44;
   offZ = 0.16;
+  pid_target=0;
   return false;
 }
 
-void Write_MPUOffsets(float offX, float offY, float offZ)
+void Write_MPUOffsets(float offX, float offY, float offZ, float pid_target)
 {
   EEPROM.update(OFFSETS_FLAG_IDX, OFFSETS_FLAG);
   EEPROM.put(OFFSETS_FLAG_IDX+1, offX);
   EEPROM.put(OFFSETS_FLAG_IDX+1+sizeof(float), offY);
   EEPROM.put(OFFSETS_FLAG_IDX+1+2*sizeof(float), offZ);
+  EEPROM.put(OFFSETS_FLAG_IDX+1+3*sizeof(float), pid_target);
 }

@@ -17,7 +17,7 @@ double pid_in, pid_out, pid_target = 0;
 
 double av_pid_out=0;
 
-double kp = 0.03, ki = 0.24, kd = 0.00048; // good trimming for very hi freq PWMs
+double kp = 0.03, ki = 0.24, kd = 0.00048; // good trimming  
 
 // Uncomment to enable LOGs
 // #define SERIAL_LOGGING
@@ -84,7 +84,7 @@ void setup()
   pid.SetOutputLimits(-1.0, 1.0);
   pid_target = 0;
 
-  
+  // player.set_disabled(true);
   int wait_count=2;
 	while ((wait_count--)>=0) {  // wait for all signals to be ready
     if(ServoInput.available())
@@ -118,13 +118,18 @@ void setup()
     offX = mpu6050.getGyroXoffset();
     offY = mpu6050.getGyroYoffset();
     offZ = mpu6050.getGyroZoffset();
+    // store pot value to EEPROM 
+    float in_pot = 2.0 * PID_TARGET_RANGE * pot.getPercent() - PID_TARGET_RANGE;
     LOG("Writing offsets to EEPROM...\n"); 
-    Write_MPUOffsets(offX, offY, offZ);
+    Write_MPUOffsets(offX, offY, offZ, in_pot);
+
   }
   else
   {
-    LOG("Loading offsets from EEPROM..."); 
-    Read_MPUOffsets(offX, offY, offZ);  
+    LOG("Loading offsets from EEPROM...");
+    float in_pot;
+    Read_MPUOffsets(offX, offY, offZ, in_pot);
+    pid_target = in_pot;
   }
 
   LOG("Gyro offsets: ");
@@ -205,7 +210,7 @@ void handle_rc_input()
     {
       // XXX This will only work if the wheels 
       // touch the ground and there is enough torque and friction
-      int speed = 130;
+      int speed = 250;
       if(pid_in<0) // robot on its back
       {
         speed=-speed;
